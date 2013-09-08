@@ -102,15 +102,15 @@ namespace CodingRange.Steam.WebAPI
 			}
 		}
 
-		protected static async Task<string> RunPostAsync(string url, Dictionary<string, object> parameter)
-		{
-			using (var client = new HttpClient())
-			{
-				var content = BuildFormContent(parameter);
-				var response = await client.PostAsync(url, content);
-				return await response.Content.ReadAsStringAsync();
-			}
-		}
+        ////protected static async Task<string> RunPostAsync(string url, Dictionary<string, object> parameter)
+        ////{
+        ////    using (var client = new HttpClient())
+        ////    {
+        ////        var content = BuildFormContent(parameter);
+        ////        var response = await client.PostAsync(url, content);
+        ////        return await response.Content.ReadAsStringAsync();
+        ////    }
+        ////}
 
 		static string StringifyParameter(object parameter)
 		{
