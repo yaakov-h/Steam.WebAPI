@@ -10,10 +10,10 @@ namespace CodingRange.Steam.WebAPI
 	public interface ISteamUser
 	{
 		[SteamAPICall("GetPlayerSummaries", 2)]
-		GenericResponse<GetPlayerSummariesResult> GetPlayerSummaries(string key, IEnumerable<string> steamids);
+		GenericResponse<GetPlayerSummariesResult> GetPlayerSummaries(IEnumerable<string> steamids);
 
 		[SteamAPICall("GetPlayerSummaries", 2)]
-		Task<GenericResponse<GetPlayerSummariesResult>> GetPlayerSummariesAsync(string key, IEnumerable<string> steamids);
+		Task<GenericResponse<GetPlayerSummariesResult>> GetPlayerSummariesAsync(IEnumerable<string> steamids);
 	}
 
 	#region Model

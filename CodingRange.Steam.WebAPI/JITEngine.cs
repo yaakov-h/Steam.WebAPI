@@ -36,12 +36,12 @@ namespace CodingRange.Steam.WebAPI
 		private static AssemblyBuilder assemblyBuilder;
 		private static ModuleBuilder moduleBuilder;
 
-		public static TInterface GetInterface<TInterface>()
+		public static TInterface GetInterface<TInterface>(string apiKey)
 		{
-			return (TInterface)GetInterface(typeof(TInterface));
+			return (TInterface)GetInterface(typeof(TInterface), apiKey);
 		}
 		
-		static object GetInterface(Type interfaceType)
+		static object GetInterface(Type interfaceType, string apiKey)
 		{
 			if (!interfaceType.IsInterface)
 			{
@@ -58,7 +58,9 @@ namespace CodingRange.Steam.WebAPI
 				jitImplClass = EmitJITImplementation(className, interfaceType);
 			}
 
-			var instance = Activator.CreateInstance(jitImplClass);
+			// Now create it
+			var constructor = jitImplClass.GetConstructor(new[] { typeof(string) });
+			var instance = constructor.Invoke(new[] { apiKey });
 
 			return instance;
 		}
@@ -68,15 +70,30 @@ namespace CodingRange.Steam.WebAPI
 			var typeBuilder = moduleBuilder.DefineType(className, TypeAttributes.Class, typeof(APIBase));
 			typeBuilder.AddInterfaceImplementation(interfaceType);
 
+			EmitConstructor(typeBuilder);
+
 			foreach (var method in interfaceType.GetMethods())
 			{
-				ProcessClassMethod(typeBuilder, method, interfaceType.Name);
+				EmitClassMethod(typeBuilder, method, interfaceType.Name);
 			}
 
 			return typeBuilder.CreateType();
 		}
 
-		static void ProcessClassMethod(TypeBuilder typeBuilder, MethodInfo method, string interfaceName)
+		static void EmitConstructor(TypeBuilder typeBuilder)
+		{
+			var constructorBuilder = typeBuilder.DefineConstructor(MethodAttributes.Public | MethodAttributes.HideBySig, CallingConventions.HasThis, new[] { typeof(string) });
+			var baseConstructor = typeof(APIBase).GetConstructor(BindingFlags.NonPublic | BindingFlags.Instance, null, new Type[] { typeof(string) }, new ParameterModifier[] { });
+
+			var il = constructorBuilder.GetILGenerator();
+
+			il.Emit(OpCodes.Ldarg_0); // this
+			il.Emit(OpCodes.Ldarg_1); // apiKey
+			il.Emit(OpCodes.Call, baseConstructor);
+			il.Emit(OpCodes.Ret);
+		}
+
+		static void EmitClassMethod(TypeBuilder typeBuilder, MethodInfo method, string interfaceName)
 		{
 			var callInfo = method.GetCustomAttribute<SteamAPICallAttribute>();
 			if (callInfo == null)
@@ -89,7 +106,7 @@ namespace CodingRange.Steam.WebAPI
 			// If the return type is a Task<T>, make this method async
 			var isAsync = (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(Task<>));
 
-			EmitRunMethod(typeBuilder, method, callInfo, interfaceName, isAsync);
+			EmitWebApiMethod(typeBuilder, method, callInfo, interfaceName, isAsync);
 		}
 
 		static MethodBuilder EmitClassMethodBase(TypeBuilder typeBuilder, MethodInfo method)
@@ -102,7 +119,7 @@ namespace CodingRange.Steam.WebAPI
 			return methodBuilder;
 		}
 
-		static void EmitRunMethod(TypeBuilder typeBuilder, MethodInfo method, SteamAPICallAttribute callInfo, string interfaceName, bool async)
+		static void EmitWebApiMethod(TypeBuilder typeBuilder, MethodInfo method, SteamAPICallAttribute callInfo, string interfaceName, bool async)
 		{
 			var methodBuilder = EmitClassMethodBase(typeBuilder, method);
 			typeBuilder.DefineMethodOverride(methodBuilder, method);
@@ -139,11 +156,12 @@ namespace CodingRange.Steam.WebAPI
 			}
 
 			// Set up parameters for calling the run method
-			il.Emit(OpCodes.Ldc_I4, (int)callInfo.Method);
-			il.Emit(OpCodes.Ldstr, interfaceName);
-			il.Emit(OpCodes.Ldstr, callInfo.Name);
-			il.Emit(OpCodes.Ldc_I4_S, callInfo.Version);
-			il.Emit(OpCodes.Ldloc_0); // parameters dictionary
+			il.Emit(OpCodes.Ldarg_0); // this
+			il.Emit(OpCodes.Ldc_I4, (int)callInfo.Method); // method
+			il.Emit(OpCodes.Ldstr, interfaceName); // interfaceName
+			il.Emit(OpCodes.Ldstr, callInfo.Name); // name
+			il.Emit(OpCodes.Ldc_I4_S, callInfo.Version); // version
+			il.Emit(OpCodes.Ldloc_0); // parameter (local variable so just load it from the stloc_0 above)
 
 			// If we're emitting an async method, we want to call RunAsync internally.
 			// Otherwise, call Run.
@@ -156,7 +174,7 @@ namespace CodingRange.Steam.WebAPI
 			var runMethodType = async ? method.ReturnType.GetGenericArguments().Single() : method.ReturnType;
 
 			// Call the parent class's protected Run* method
-			var baseMethod = typeof(APIBase).GetMethod(runMethodName, BindingFlags.NonPublic | BindingFlags.Static);
+			var baseMethod = typeof(APIBase).GetMethod(runMethodName, BindingFlags.NonPublic | BindingFlags.Instance);
 			baseMethod = baseMethod.MakeGenericMethod(runMethodType);
 			il.Emit(OpCodes.Call, baseMethod);
 			

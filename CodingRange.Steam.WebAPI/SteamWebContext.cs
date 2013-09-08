@@ -17,12 +17,7 @@ namespace CodingRange.Steam.WebAPI
 
 		public TInterface GetInterface<TInterface>()
 		{
-			return JITEngine.GetInterface<TInterface>();
-		}
-
-		public string ApiKey
-		{
-			get { return apiKey; }
+			return JITEngine.GetInterface<TInterface>(apiKey);
 		}
 	}
 }

@@ -12,19 +12,28 @@ namespace CodingRange.Steam.WebAPI
 {
 	public class APIBase
 	{
+		protected APIBase(string apiKey)
+		{
+			this.apiKey = apiKey;
+		}
+
+		readonly string apiKey;
+
 #if DEBUG
 		private static string BaseURL = "http://api.steampowered.com";
 #else
 		private static string BaseURL = "https://api.steampowered.com";
 #endif
 		
-		protected static TResult Run<TResult>(APIMethod method, string interfaceName, string name, int version, Dictionary<string, object> parameter)
+		protected TResult Run<TResult>(APIMethod method, string interfaceName, string name, int version, Dictionary<string, object> parameter)
 		{
 			return RunAsync<TResult>(method, interfaceName, name, version, parameter).Result;
 		}
 
-		protected static async Task<TResult> RunAsync<TResult>(APIMethod method, string interfaceName, string name, int version, Dictionary<string, object> parameter)
+		protected async Task<TResult> RunAsync<TResult>(APIMethod method, string interfaceName, string name, int version, Dictionary<string, object> parameter)
 		{
+			parameter.Add("key", this.apiKey);
+
 			var url = BuildURL(interfaceName, name, version);
 
 			string json;
